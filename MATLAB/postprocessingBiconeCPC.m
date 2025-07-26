@@ -9,14 +9,14 @@ timerTotal = tic;
 % R1: bicone radius [m]
 % R: cup radius [m]
 % % Parameters of the Rheometer dynamics:
-% inertia: system (rotor + bicone) inertia [Kg穖^2]
-% b: frictional torque coefficient [Kg穖^2穝]
+% inertia: system (rotor + bicone) inertia [Kg路m^2]
+% b: frictional torque coefficient [Kg路m^2路s]
 % %Mesh parameters:
 % N: Subintervals in r direction
 % M: Subintervals in z direction
 % % Subphase physical parameters:
 % rho_bulk: subphase density [Kg/m^3]
-% eta_bulk: subphase viscosity [Pa穝]
+% eta_bulk: subphase viscosity [Pa路s]
 % %Iterative scheme parameters:
 % iteMax: maximum number of iterations
 % tolMin: threshold tolerance
@@ -86,7 +86,6 @@ for ite = 1:length(expFilenames)
         g = solve_NS_bicono(Re, Bou(lambda), N, M, R1_adim, delta_z);
         Nb = floor(N*R1_adim);
         % Calculating subphase drag integral by the compound trapezium rule
-%         integral=((M*R*R*R)/(2*h*N*N*N))*(sum(((2:Nb)-1)'.*((2:Nb)-1)'*2.*(g((2:Nb))-g((2:Nb)+(N+1))))+Nb*Nb*(g(Nb+1)-g((Nb+1)+(N+1))));
         integral = ((M*R*R*R)/(h*N*N*N))*(trapz(((2:Nb+1)-1)'.*((2:Nb+1)-1)'.*(g((2:Nb+1))-g((2:Nb+1)+(N+1)))));
         C = 1i*omegarad*2*pi*R1*eta_bulk;
         Tsub = -C*integral;% Subphase drag
@@ -97,13 +96,12 @@ for ite = 1:length(expFilenames)
         % while loop performing the successive iterations
         while lambda<iteMax && errorAR(lambda)>tolMin 
             lambda = lambda+1;
-            Bou(lambda) = (1i*omegarad*2*pi*R1*eta_bulk*integral-ARexp-inertia*omegarad*omegarad+1i*b*omegarad)/....
+            Bou(lambda) = (1i*omegarad*2*pi*R1*eta_bulk*integral - ARexp - inertia*omegarad*omegarad + 1i*b*omegarad)/....
                 (1i*omegarad*2*pi*R1*R1*R*eta_bulk*(R1*(N/R)*(g(Nb+2)-g(Nb+1))-1));       
             % Solving the Navier-Stokes equation
             g = solve_NS_bicono(Re, Bou(lambda), N, M, R1_adim, delta_z);
             Nb = floor(N*R1_adim);
             % Calculating subphase drag integral by the compound trapezium rule
-%             integral=((M*R*R*R)/(2*h*N*N*N))*(sum(((2:Nb)-1)'.*((2:Nb)-1)'*2.*(g((2:Nb))-g((2:Nb)+(N+1))))+Nb*Nb*(g(Nb+1)-g((Nb+1)+(N+1))));
             integral = ((M*R*R*R)/(h*N*N*N))*(trapz(((2:Nb+1)-1)'.*((2:Nb+1)-1)'.*(g((2:Nb+1))-g((2:Nb+1)+(N+1)))));
             Tsub = -C*integral;% Subphase drag
             Tsurf = C*R1*R*Bou(lambda)*(R1*(N/R)*(g(Nb+2)-g(Nb+1))-1);% Surface drag
@@ -122,10 +120,7 @@ for ite = 1:length(expFilenames)
         fprintf('Iterative process time = %s s\n\n', num2str(timeElapsedIT(lin)))
         Bou_final(lin) = Bou(lambda);
         ARcalc_final(lin) = ARcalc(lambda);
-        delta_AR_final(lin) = atan(imag(ARcalc(lambda))/real(ARcalc(lambda)));
-        if delta_AR_final(lin) < 0
-            delta_AR_final(lin) = delta_AR_final(lin)+pi;
-        end    
+        delta_AR_final(lin) = angle(ARcalc(lambda));
         errorAR_final(lin) = errorAR(lambda);
         lambda_final(lin) = lambda;   
     end
