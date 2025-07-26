@@ -1,16 +1,9 @@
 import numpy as np
 import glob
-import sys
+import os
 import time 
 from scipy import sparse
 import scipy.sparse.linalg
-# Defining timer depending on the operative system
-if sys.platform == 'win32':
-    # on Windows, the best timer is time.clock
-    timer = time.clock
-else:
-    # on most other platforms the best timer is time.time
-    timer = time.time      
     
 def solve_NS_bicono(Re, Bo, n, m, R1_adim, delta_z):
     # This function solves the Navier-Stokes equations with no-slip
@@ -131,20 +124,15 @@ def postprocessingBiconeCPC(h, R1, R, inertia, b, n, m, rho_bulk, eta_bulk, iteM
     # iterationsData: number of iterations to process each line of data
 	# timeElapsedTotal: total execution time
 	
-    timerTotal = timer()
+    start_timeTot = time.time()
 
     h_adim = h/R
-    # delta_r=1/N #mesh spacing in r
     delta_z = h_adim/m# mesh spacing in z
     R1_adim = R1/R
     
     expFilenames = []
-    if sys.platform == 'win32':
-        for name  in glob.glob(inputFilepath + '\\*_exp.txt'):
-            expFilenames.append(name)
-    else:
-        for name  in glob.glob(inputFilepath + '/*_exp.txt'):
-            expFilenames.append(name)
+    pattern = os.path.join(IO.inputFilepath, '*_exp.txt')
+    expFilenames = glob.glob(pattern)
         
     # Initializing optional output data
     iterationsTimesData = []
@@ -160,15 +148,12 @@ def postprocessingBiconeCPC(h, R1, R, inertia, b, n, m, rho_bulk, eta_bulk, iteM
     # for-end looping on each input data file (*_exp.txt file)
     for ite in range(len(expFilenames)):
         print('Analyzing file {}...\n'.format(ite+1))
-        if sys.platform == 'win32':
-            expFileData = np.genfromtxt(expFilenames[ite].split('\\')[-1], delimiter='\t', dtype=None)
-        else:
-            expFileData = np.genfromtxt(expFilenames[ite].split('/')[-1], delimiter='\t', dtype=None)
-            
-        if len(expFileData.shape)==1:
-            expFileData=np.array([expFileData])    
-        # Displaying the number of lines to process in the file
-        filasexpFiledata = int(expFileData.shape[0])
+        
+        expFileData = np.genfromtxt(expFilenames[ite], delimiter='\t', dtype=None)
+        if expFileData.ndim == 1:
+            expFileData = np.array([expFileData])
+        expFileData = expFileData.T
+        filasexpFiledata = expFileData.shape[1]               
         
         print('Lines: {} \n'.format(filasexpFiledata))
         expFileData = expFileData.T
@@ -193,9 +178,8 @@ def postprocessingBiconeCPC(h, R1, R, inertia, b, n, m, rho_bulk, eta_bulk, iteM
             Bou = []
             ARcalc = []
             errorAR = []
-            
             Bou.append(((R-R1)/(1j*2*np.pi*omegarad*eta_bulk*R1*R1*R*R))*(ARexp-ARclean))
-            timerVal = timer()
+            start_timeIt = time.time()
             # Solving the Navier-Stokes equation
             g = solve_NS_bicono(Re, Bou[-1], n, m, R1_adim, delta_z)
             nb = np.floor(n*R1_adim)
@@ -227,15 +211,12 @@ def postprocessingBiconeCPC(h, R1, R, inertia, b, n, m, rho_bulk, eta_bulk, iteM
             else:
                 print('OK convergence at {} iterations\n'.format(lmbd))# Iterations have converged!!!
                 
-            timeElapsedIT[lin] = timer() - timerVal
+            timeElapsedIT[lin] = time.time() - start_timeIt
 			# Displaying the time used in the iterative process for each line
             print('Iterative process time = {} s\n'.format(timeElapsedIT[lin]))
             Bou_final[lin] = Bou[-1]
             ARcalc_final[lin] = ARcalc[-1]
-            delta_AR_final[lin] = np.arctan(np.imag(ARcalc[-1])/np.real(ARcalc[-1]))
-            if delta_AR_final[lin] < 0:
-                delta_AR_final[lin] = delta_AR_final[lin] + np.pi
-                
+            delta_AR_final[lin] = np.angle(ARcalc[-1])
             errorAR_final[lin] = errorAR[-1]
             lambda_final[lin] = lmbd;   
         # Calculating variables depending on the Boussinesq number
@@ -247,10 +228,10 @@ def postprocessingBiconeCPC(h, R1, R, inertia, b, n, m, rho_bulk, eta_bulk, iteM
                              np.imag(eta_s_final), np.real(Bou_final), np.imag(Bou_final), np.absolute(ARcalc_final),
                              delta_AR_final, timeElapsedIT, lambda_final]))
         results = results.T
-        if sys.platform == 'win32':
-            np.savetxt(outputFilepath+'\\'+expFilenames[ite].split('\\')[-1].replace('exp','out'), results, fmt='%.14f', delimiter='\t')
-        else:
-            np.savetxt(outputFilepath+'/'+expFilenames[ite].split('/')[-1].replace('exp','out'), results, fmt='%.14f', delimiter='\t')
+        base_filename = os.path.basename(expFilenames[ite]).replace('exp', 'out')
+        output_path = os.path.join(IO.outputFilepath, base_filename)
+        np.savetxt(output_path, results, fmt='%.14f', delimiter='\t')
+
         # Optional output data
         iterationsTimesData.append(timeElapsedIT)
         iterationsData.append(lambda_final)
@@ -259,6 +240,6 @@ def postprocessingBiconeCPC(h, R1, R, inertia, b, n, m, rho_bulk, eta_bulk, iteM
         GData.append(G_complex)
         ARcalcData.append(np.absolute(ARcalc_final))
         deltaARcalcData.append(delta_AR_final)
-    timeElapsedTotal = timer() - timerTotal
+    timeElapsedTotal = time.time() - start_timeTot
     print('Total postprocessing program time = {} s\n'.format(timeElapsedTotal))
     return GData,etasData,bouData,ARcalcData,deltaARcalcData,iterationsTimesData,iterationsData,timeElapsedTotal
